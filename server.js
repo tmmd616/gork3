@@ -482,6 +482,19 @@ async function initializeBrowser() {
         page.on('requestfailed', (request) => {
             console.error('Failed Request:', request.url(), request.failure().errorText);
             });    
+
+            await page.addInitScript(() => {
+              // 在页面加载前就禁用 Service Worker
+              if ('serviceWorker' in navigator) {
+                  Object.defineProperty(navigator, 'serviceWorker', {
+                      value: {
+                          register: () => Promise.reject('Service Worker disabled'),
+                          getRegistration: () => Promise.resolve(null)
+                      },
+                      writable: false
+                  });
+              }
+          });
         page.goto('https://x.com/i/grok');
         console.log('Successfully opened grok');
 
@@ -844,22 +857,29 @@ async function sendMessage(res3, message) {
 
       //  await page.unroute('**/*');
 
-        
+      let textarea=null;
 
-          //输入文本
-          const textarea = await page.getByPlaceholder('提出任何問題');
+      try {
+        textarea = await page.getByPlaceholder('提出任何問題').first();
+        await textarea.waitFor({ state: 'visible', timeout: 100 });
 
-          if (!textarea) {
-            console.log("语言不是繁体")
-
-            textarea = await page.getByPlaceholder('随便问点什么');
+      } catch (error) {
+        // 处理超时错误
+        try {
+          textarea = await page.getByPlaceholder('随便问点什么').first();
+          await textarea.waitFor({ state: 'visible', timeout: 100 });
+  
+        } catch (error) {
+          try {
+            textarea = await page.getByPlaceholder('Ask anything').first();
+            await textarea.waitFor({ state: 'visible', timeout: 100 });
+    
+          } catch (error) {
+            // 处理超时错误
+            console.error('操作超时:', error);
           }
-
-          
-          if (!textarea) {
-            console.log("语言不是中文")
-            textarea = await page.getByPlaceholder('Ask anything');
-          }
+        }
+      }
 
           if (!textarea) {
 
@@ -1170,23 +1190,23 @@ function getFileType(fileName) {
   });
 
     console.log('设置请求拦截器..`````````````````````````````````````````````````````````````````````````````````.');
-    await new Promise(resolve => setTimeout(resolve, 100));
+   // await new Promise(resolve => setTimeout(resolve, 100));
 
-    await page.evaluate(() => {
-      // 注销所有 Service Worker
-      if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(registrations => {
-              registrations.forEach(registration => {
-                  registration.unregister();
-              });
-          });
-      }
-  });
+  //   await page.evaluate(() => {
+  //     // 注销所有 Service Worker
+  //     if ('serviceWorker' in navigator) {
+  //         navigator.serviceWorker.getRegistrations().then(registrations => {
+  //             registrations.forEach(registration => {
+  //                 registration.unregister();
+  //             });
+  //         });
+  //     }
+  // });
     
     await page.route('**/*', async (route) => {
         const request = route.request();
         let url = request.url();
-        console.log('request url:', url);
+      //  console.log('request url:', url);
 
         if (url.includes('/2/grok/add_response.json')&&request.method()==='POST') {
               console.log('request url:', url);
