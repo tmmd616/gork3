@@ -647,9 +647,9 @@ class CustomEventSource extends EventEmitter {
         
         if(One){
             One=false;
-            console.log('第一次');
+            console.log('开始请求');
            }else{
-            console.log('第二次');
+             
             return null;
          }
         // 如果已经有活跃的请求，先关闭它
@@ -683,7 +683,7 @@ class CustomEventSource extends EventEmitter {
                       let shuju=JSON.parse(line);
                       if(shuju.hasOwnProperty('result')&&shuju.result.hasOwnProperty("message")){
                         this.emit('message', shuju.result);
-                        console.log("shuju.result:",shuju.result)
+                      //  console.log("shuju.result:",shuju.result)
                        }
                     
                 });
@@ -921,11 +921,27 @@ async function sendMessage(res3, message) {
                         }
                         try { 
 
+                          // ... existing code ...
+
 
                           await new Promise(resolve => setTimeout(resolve, 200));
 
 
                              const fileInput = await page.locator('input[type="file"]');
+                              // 强制清空文件列表（即使支持多文件）
+                              try {
+                                // 使用 waitForSelector 设置超时时间
+                                await page.waitForSelector('button[aria-label="Remove"]', { 
+                                  timeout: 100,
+                                  state: 'visible' 
+                                });
+                              
+                                // 点击按钮
+                                await page.getByLabel('Remove').click();
+                              } catch (error) {
+                                // 如果在100毫秒内未找到，静默处理
+                                console.log('无需清除文件');
+                              }
 
                               // 直接设置文件路径，不会显示文件选择对话框
                               await fileInput.setInputFiles(localCopyPath);
@@ -936,6 +952,11 @@ async function sendMessage(res3, message) {
                           navigator.clipboard.writeText(text);
                         }, config.Prompt);
                         await textarea.click();
+
+                        await page.keyboard.press('Control+A');
+
+                        await new Promise(resolve => setTimeout(resolve, 100));
+
                         await page.keyboard.press('Control+V');
                           
                         } catch (error) {
@@ -986,6 +1007,10 @@ async function sendMessage(res3, message) {
                               navigator.clipboard.writeText(text);
                             }, Message);
                             await textarea.click();
+
+                            await page.keyboard.press('Control+A');
+
+                            await new Promise(resolve => setTimeout(resolve, 100));
                             await page.keyboard.press('Control+V');
                               
                             } catch (error) {
@@ -1090,12 +1115,14 @@ async function sendMessage(res3, message) {
       });
 
       try {
+        if(Upload){
         fs.unlink(localCopyPath, (err) => {
           if (err) {
             console.error('删除文件时出错:', err);
           }
           console.log('文件已成功删除');
         });
+      }
 
       } catch (error) {
         console.error('删除文件时出错:', err);
@@ -1373,8 +1400,8 @@ function getFileType(fileName) {
                         customEventSource.close();
                         return false;
                     }
-                    console.log('Received event:', event);
-                    console.log('Received message:', event.message);
+                 //   console.log('Received event:', event);
+                 //   console.log('Received message:', event.message);
                     processStreamData(event.message);
                 });
 
@@ -1420,7 +1447,7 @@ function getFileType(fileName) {
             return;
         }
 
-        console.log('数据', message);
+       // console.log('数据', message);
 
 
         if (message){
@@ -1450,7 +1477,7 @@ function getFileType(fileName) {
                 if (resssss) {
                     console.log('Sending response:', JSON.stringify(response));
                     if (isstream) {
-                        console.log(isstream)
+                       // console.log(isstream)
                         reqmessage += text;
                         resssss.flushHeaders();
                         resssss.write(`data: ${JSON.stringify(response).replace("\\n", "\\n ")}\n\n`);
