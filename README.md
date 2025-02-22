@@ -16,7 +16,7 @@
 在 config.json文件中 设置端口 cookie 和 代理 
 ## cookie 获取
 
-可以按 f12 在网页的控制台中 输入 console.log(document.cookie);  来获取
+可以按 f12 在网页的控制台中 网络 请求里 的cookie 复制 来获取
 
 ## 投喂咖啡
 
