@@ -230,6 +230,13 @@ function processFileContents(fileContents, cookiesjson) {
         if(cookieNowCount >= cookiesCount){
           cookiesCount=cookiesCount+1;
           console.log(`cookiesCount`,cookiesCount);
+          const time11 = currentTimestamp - fileRecord.timestamp;
+          console.log(`time11`,time11);
+          if(time11 > 7200){
+            fileRecord.count = 0;
+            fileRecord.timestamp = currentTimestamp;
+            updateCookiesJson(nowfilename,0);
+          }
         return content;
       }
 
@@ -241,7 +248,7 @@ function processFileContents(fileContents, cookiesjson) {
   
         // 如果使用次数小于3，直接返回内容
         if (fileRecord.count < config.twoHours||config.pro) {
-          fileRecord.timestamp = currentTimestamp;
+          
           nowcount=fileRecord.count;
           // 写入 cookiesjson 文件
         //   fs.writeFileSync(
@@ -252,6 +259,17 @@ function processFileContents(fileContents, cookiesjson) {
           if(cookieNowCount >= cookiesCount){
             cookiesCount=cookiesCount+1;
             console.log(`cookiesCount`,cookiesCount);
+            const time11 = currentTimestamp - fileRecord.timestamp;
+
+            console.log(`currentTimestamp`,currentTimestamp);
+            console.log("fileRecord.timestamp",fileRecord.timestamp);
+
+            console.log(`time11`,time11);
+            if(time11 > 7200){
+              fileRecord.count = 0;
+              fileRecord.timestamp = currentTimestamp;
+              updateCookiesJson(nowfilename,0);
+            }
             return content;
           }
         }
@@ -272,6 +290,11 @@ function processFileContents(fileContents, cookiesjson) {
             if(cookieNowCount >= cookiesCount){
               cookiesCount=cookiesCount+1;
               console.log(`cookiesCount`,cookiesCount);
+              const time11 = currentTimestamp - fileRecord.timestamp;
+              console.log(`time11`,time11);
+              if(time11 > 7200){
+                updateCookiesJson(nowfilename,0);
+              }
               return content;
             }
 
@@ -412,7 +435,10 @@ async function generateUniqueUserId() {
 async function initializeBrowser() {
     try {
         let viewportSize = { width: 900, height: 700 }; // 可以根据需要调整这些值
+
+
         browser = await chromium.launch({
+            channel: config.channel,
             deviceScaleFactor: 1,
             isMobile: false,
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -542,7 +568,10 @@ process.on('SIGINT', async () => {
 
 const availableModels = [
     { id: "gork-3", name: "gork-3" },
+    { id: "gork-3-上传", name: "gork-3-上传" }
 ];
+
+let Upload=false;
 
 app.post('/v1/chat/completions', async (req, res) => {
     console.log('Received chat request');
@@ -562,6 +591,17 @@ app.post('/v1/chat/completions', async (req, res) => {
     });
 
     let body=req.body
+    //是否采用上传模式
+    if(req.body.model=="gork-3-上传"){
+
+      Upload=true;
+
+    }else{
+
+      Upload=false;
+    }
+
+
   
     if(!body.hasOwnProperty('stream')||!body["stream"]){
         isstream=false;
@@ -572,7 +612,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     req.setEncoding("utf8");
     console.log("isstream",isstream)
-    console.log('Received chat request:', req.body);
+  //  console.log('Received chat request:', req.body);
     await sendMessage(res, req.body);
 });
 
@@ -699,6 +739,8 @@ let viptanchuan=false;
 
 let newuse=true;
 
+let  localCopyPath="";
+
 async function sendMessage(res3, message) {
 
           
@@ -804,7 +846,7 @@ async function sendMessage(res3, message) {
                   }
         
               } catch (error) {
-                console.error('Save & close:', error);
+                console.log("无需开启新聊天");
         
               }
     
@@ -815,15 +857,10 @@ async function sendMessage(res3, message) {
     //新建聊天
     
     await setupRequestInterception(page);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 200));
 
-
-
-
-  await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
-        //page.goto('https://you.com/?chatMode=user_mode_42a442b3-b21c-4db0-bcdc-ce5370733c64');
         message = message.messages;
         message = simplifyJsonString(message)
         function simplifyJsonString(message) {
@@ -848,61 +885,121 @@ async function sendMessage(res3, message) {
               return "Error: Invalid JSON string";
             }
           }
+          Message = message;
+     //   console.log('Formatted messages:', message);
+        if(Upload){
+                      let yuyan="提出任何問題";
+
+                      const txtname= Math.random().toString(36).substring(3);
+                      localCopyPath = path.join(__dirname, `${txtname+".txt"}`);
+                      fs.writeFileSync(localCopyPath, message);
+
+                      let textarea=null;
+
+                      try {
+                        textarea = await page.getByPlaceholder('提出任何問題').first();
+                        await textarea.waitFor({ state: 'visible', timeout: 100 });
+
+                      } catch (error) {
+                        // 处理超时错误
+                        try {
+                          textarea = await page.getByPlaceholder('随便问点什么').first();
+                          await textarea.waitFor({ state: 'visible', timeout: 100 });
+                          yuyan="随便问点什么";
+                  
+                        } catch (error) {
+                        try {
+                          textarea = await page.getByPlaceholder('Ask anything').first();
+                          await textarea.waitFor({ state: 'visible', timeout: 100 });
+                          yuyan="Ask anything";
+                  
+                        } catch (error) {
+                          // 处理超时错误
+                          console.error('操作超时:', error);
+                        }
+                      }
+                    }
+
+                        if (!textarea) {
+
+                          console.log('textarea not found');
+                          return false;
+                          
+                        }
+                        try { 
+
+
+                          await new Promise(resolve => setTimeout(resolve, 200));
+
+
+                             const fileInput = await page.locator('input[type="file"]');
+
+                              // 直接设置文件路径，不会显示文件选择对话框
+                              await fileInput.setInputFiles(localCopyPath);
+
+
+                                    // 方法3：对于超长文本，使用剪贴板
+                      await page.evaluate((text) => {
+                          navigator.clipboard.writeText(text);
+                        }, config.Prompt);
+                        await textarea.click();
+                        await page.keyboard.press('Control+V');
+                          
+                        } catch (error) {
+
+                          console.error('Error:', error);
+                        }
+
+
+
+       }else{
+
+                          let textarea=null;
+
+                          try {
+                            textarea = await page.getByPlaceholder('提出任何問題').first();
+                            await textarea.waitFor({ state: 'visible', timeout: 100 });
+
+                          } catch (error) {
+                            // 处理超时错误
+                            try {
+                              textarea = await page.getByPlaceholder('随便问点什么').first();
+                              await textarea.waitFor({ state: 'visible', timeout: 100 });
+                      
+                            } catch (error) {
+                            try {
+                              textarea = await page.getByPlaceholder('Ask anything').first();
+                              await textarea.waitFor({ state: 'visible', timeout: 100 });
+                      
+                            } catch (error) {
+                              // 处理超时错误
+                              console.error('操作超时:', error);
+                            }
+                          }
+                        }
+
+                            if (!textarea) {
+
+                              console.log('textarea not found');
+                              
+                            }
+                            try { 
+
+                          
+                            //  await textarea.fill(Message);
+
+                           // 方法3：对于超长文本，使用剪贴板
+                          await page.evaluate((text) => {
+                              navigator.clipboard.writeText(text);
+                            }, Message);
+                            await textarea.click();
+                            await page.keyboard.press('Control+V');
+                              
+                            } catch (error) {
+                              console.error('Error:', error);
+                            }
           
-        console.log('Formatted messages:', message);
-        //const txtname= Math.random().toString(36).substring(3);
-       // const localCopyPath = path.join(__dirname, `${txtname+".txt"}`);
-        //fs.writeFileSync(localCopyPath, message);
-        Message = message;
-
-      //  await page.unroute('**/*');
-
-      let textarea=null;
-
-      try {
-        textarea = await page.getByPlaceholder('提出任何問題').first();
-        await textarea.waitFor({ state: 'visible', timeout: 100 });
-
-      } catch (error) {
-        // 处理超时错误
-        try {
-          textarea = await page.getByPlaceholder('随便问点什么').first();
-          await textarea.waitFor({ state: 'visible', timeout: 100 });
-  
-        } catch (error) {
-          try {
-            textarea = await page.getByPlaceholder('Ask anything').first();
-            await textarea.waitFor({ state: 'visible', timeout: 100 });
-    
-          } catch (error) {
-            // 处理超时错误
-            console.error('操作超时:', error);
-          }
         }
-      }
-
-          if (!textarea) {
-
-            console.log('textarea not found');
-            
-          }
-          try { 
-
-
-          //  await textarea.fill(Message);
-
-                      // 方法3：对于超长文本，使用剪贴板
-         await page.evaluate((text) => {
-            navigator.clipboard.writeText(text);
-          }, Message);
-          await textarea.click();
-          await page.keyboard.press('Control+V');
-            
-          } catch (error) {
-            console.error('Error:', error);
-          }
-          
-
 
 
   //    const test="claude你必须阅读并理解文档的内容并进行遵守！！";    //   await page.evaluate(([selector, text]) => {
@@ -910,13 +1007,16 @@ async function sendMessage(res3, message) {
         if (Aborted) {
             console.log('guanbi!!!!');
             customEventSource.close();
+            fs.unlink(localCopyPath, (err) => {
+              if (err) {
+                console.error('删除文件时出错:', err);
+                return;
+              }
+              console.log('文件已成功删除');
+            });
             return false;
         }
        
-        if (Aborted) {
-            customEventSource.close();
-            return false;
-        }
         // 发送消息
              // 设置请求拦截
            //  await setupresponseInterception(page, res3, () => isResponseEnded = true);
@@ -990,6 +1090,24 @@ async function sendMessage(res3, message) {
         
       }
 
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 1000);
+      });
+
+      try {
+        fs.unlink(localCopyPath, (err) => {
+          if (err) {
+            console.error('删除文件时出错:', err);
+          }
+          console.log('文件已成功删除');
+        });
+
+      } catch (error) {
+        console.error('删除文件时出错:', err);
+      }
+
 
           nowcount=nowcount+1
           updateCookiesJson(nowfilename,nowcount);
@@ -1001,6 +1119,13 @@ async function sendMessage(res3, message) {
         if (Aborted) {
             console.log('guanbi!!!!');
             customEventSource.close();
+            fs.unlink(localCopyPath, (err) => {
+              if (err) {
+                console.error('删除文件时出错:', err);
+                return;
+              }
+              console.log('文件已成功删除');
+            });
             return false;
         }
        // recordUserRequest(userId);
@@ -1038,6 +1163,7 @@ async function uploadFile(selector, filePath, page) {
     //     console.log(`Element with class "${selector}" not found`);
     // }
     try {
+      await new Promise(resolve => setTimeout(resolve, 200));
         // 读取文件内容
         const fileContent = await fsPromises.readFile(filePath);
         const fileName = path.basename(filePath);
@@ -1048,7 +1174,7 @@ async function uploadFile(selector, filePath, page) {
         const fileType = getFileType(fileName);
     
         // 在浏览器中执行文件上传模拟
-        await page.evaluate(async ({ fileName, fileContent, fileType }) => {
+        await page.evaluate(async ({ fileName, fileContent, fileType,selector}) => {
           // 将 ArrayBuffer 转换为 Uint8Array
           const uint8Array = new Uint8Array(fileContent);
           
@@ -1074,16 +1200,17 @@ async function uploadFile(selector, filePath, page) {
               dataTransfer: dataTransfer
             });
           };
-    
+
+          console.log('File upload simulation started for:', selector);
           // 模拟拖拽过程
-          const dropZone = document.querySelector('._1jueq102') || document.body;
+          const dropZone = document.querySelector(`[placeholder="${selector}"]`);
           
           dropZone.dispatchEvent(createDragEvent('dragenter'));
           dropZone.dispatchEvent(createDragEvent('dragover'));
           dropZone.dispatchEvent(createDragEvent('drop'));
     
           console.log('File upload simulation completed for:', fileName);
-        }, { fileName, fileContent: Array.from(fileContent), fileType });
+        }, { fileName, fileContent: Array.from(fileContent), fileType,selector });
     
         console.log('File upload process completed successfully.');
       } catch (error) {
