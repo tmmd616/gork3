@@ -230,13 +230,6 @@ function processFileContents(fileContents, cookiesjson) {
         if(cookieNowCount >= cookiesCount){
           cookiesCount=cookiesCount+1;
           console.log(`cookiesCount`,cookiesCount);
-          const time11 = currentTimestamp - fileRecord.timestamp;
-          console.log(`time11`,time11);
-          if(time11 > 7200){
-            fileRecord.count = 0;
-            fileRecord.timestamp = currentTimestamp;
-            updateCookiesJson(nowfilename,0);
-          }
         return content;
       }
 
