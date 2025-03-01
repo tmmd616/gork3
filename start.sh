@@ -1,10 +1,7 @@
 #!/bin/bash
+# 启动虚拟显示
+Xvfb :99 -screen 0 1024x768x16 &
+export DISPLAY=:99
 
-# 安装依赖包
-npm install
-
-# 运行 Node.js 应用程序
+# 启动您的Node.js应用
 node server.js
-
-echo "按 Enter 键退出..."
-read

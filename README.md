@@ -1,23 +1,37 @@
-# Node.js中转站服务器
+---
+title: Genspark AI Proxy
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+sdk_version: "latest"
+app_port: 3333
+pinned: false
+---
 
-这是一个用于Monica代理的Node.js中转站服务器，专为Windows环境设计。在安装了桌面环境的linux 也能运行
+# Genspark AI Proxy
 
-## 快速开始
+这是一个使用Playwright和Node.js构建的Genspark AI代理服务。该服务在Docker容器中运行，使用虚拟显示来支持浏览器自动化。
 
-1. 确保您的系统已安装Node.js和npm。如果没有，请从[Node.js官网](https://nodejs.org)下载并安装。
+## 功能
 
-2. 下载或克隆此仓库到您的本地机器。
+- 代理Genspark AI的API请求
+- 使用Playwright自动化浏览器交互
+- 支持流式响应处理
 
-3. 双击运行`Start.bat`文件。这将自动安装依赖并启动服务器。
+## 技术栈
 
-服务器将在 http://localhost:3333 上运行。
-## 配置
+- Node.js
+- Playwright
+- Docker
+- Xvfb (用于虚拟显示)
 
-在 config.json文件中 设置端口 cookie 和 代理 
-## cookie 获取
+## 部署
 
-可以按 f12 在网页的控制台中 网络 请求里 的cookie 复制 来获取
+该应用程序已配置为在Hugging Face Spaces上使用Docker部署。
 
-## 投喂咖啡
+## 本地运行
 
-https://afdian.com/a/cqgnyy
+```bash
+docker build -t genspark-proxy .
+docker run -p 3333:3333 genspark-proxy

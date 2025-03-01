@@ -15,6 +15,7 @@ import si from 'systeminformation';
 import crypto from 'crypto';
 import { chromium } from '@playwright/test';
 import { Readable } from 'stream';
+import { createServer } from 'http';
 //版本号
 const banbenhao = "1.4";
 
@@ -136,6 +137,8 @@ let userId;
 // 设置本地代理
 const proxyUrl = config.proxyUrl;
 const proxyAgent = config.proxy ? new HttpsProxyAgent(proxyUrl) : null;
+
+
 const EventEmitter = require('events');
 const URL = require('url').URL;
 const __filename = fileURLToPath(import.meta.url);
@@ -158,14 +161,14 @@ let nowfilename="";
 let One=true;
 let cookiesCount=0;
 // Worker 的基础 URL
-const baseUrl = 'https://tongji2.damoshen2.workers.dev';
+// const baseUrl = 'https://tongji2.damoshen2.workers.dev';
 
-const baseUrl2 = 'https://you.com';
-// 创建 axios 实例
-const axiosInstance = axios.create({
-  baseURL: baseUrl,
-  httpsAgent: proxyAgent
-});
+// const baseUrl2 = 'https://you.com';
+// // 创建 axios 实例
+// const axiosInstance = axios.create({
+//   baseURL: baseUrl,
+//   httpsAgent: proxyAgent
+// });
 // 全局捕获未处理的 Promise 异常
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
@@ -240,7 +243,7 @@ function processFileContents(fileContents, cookiesjson) {
         const timeDiff = currentTimestamp - fileRecord.timestamp;
   
         // 如果使用次数小于3，直接返回内容
-        if (fileRecord.count < config.twoHours||config.pro) {
+        if (fileRecord.count < config.Hours24||config.pro) {
           
           nowcount=fileRecord.count;
           // 写入 cookiesjson 文件
@@ -301,65 +304,6 @@ function processFileContents(fileContents, cookiesjson) {
     return null;
 }
 
-const axiosInstance2 = axios.create({
-    baseURL: baseUrl2,
-    httpsAgent: proxyAgent
-  });
-
-
-// 获取版本号
-async function getVersion() {
-  try {
-    const response = await axiosInstance.get('/api/version');
-    console.log('Version:', response.data.version);
-    return response.data.version;
-  } catch (error) {
-    console.error('Error fetching version:', error.message);
-  }
-}
-
-// 记录用户请求
-async function recordUserRequest(userId) {
-  try {
-    const response = await axiosInstance.post('/api/record',
-      { userId: userId },
-      {
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-    console.log('Record response:', response.data);
-  } catch (error) {
-    console.error('Error recording user request:', error.message);
-  }
-}
-
-// 生成唯一的电脑用户ID
-async function generateUniqueUserId() {
-    try {
-      const [cpu, system, osInfo, uuid] = await Promise.all([
-        si.cpu(),
-        si.system(),
-        si.osInfo(),
-        si.uuid()
-      ]);
-  
-      const hardwareInfo = {
-        cpuId: cpu.processor_id || '',
-        systemUuid: system.uuid || '',
-        systemModel: system.model || '',
-        osUuid: osInfo.uuid || '',
-        machineUuid: uuid.hardware || ''
-      };
-  
-      const combinedInfo = Object.values(hardwareInfo).join('-');
-      const hash = crypto.createHash('sha256');
-      hash.update(combinedInfo);
-      return hash.digest('hex');
-    } catch (error) {
-      console.error('Error generating unique user ID:', error);
-      return 'unknown-' + Date.now();
-    }
-  }
   
 
 
@@ -427,97 +371,188 @@ async function generateUniqueUserId() {
 
 async function initializeBrowser() {
     try {
-        let viewportSize = { width: 900, height: 700 }; // 可以根据需要调整这些值
+      let viewportSize = { width: 900, height: 700 }; // 可以根据需要调整这些值
+      // 尝试找到可用的浏览器路径
+ const possiblePaths = [
+   '/ms-playwright/chromium-1046/chrome-linux/chrome',  // v1.46.1
+   '/ms-playwright/chromium-1060/chrome-linux/chrome',  // 可能的其他版本
+   '/ms-playwright/chromium-1080/chrome-linux/chrome',
+   '/ms-playwright/chromium-1140/chrome-linux/chrome'   // v1.48.2
+ ];
+ let options={};
+ if(config.channel=="chromium"&&config.wutou==true){
 
+      options = {
+       headless: config.headless,
+       args: [
+         '--no-sandbox', 
+         '--disable-setuid-sandbox',
+         '--disable-gpu',
+         '--disable-dev-shm-usage',
+         '--window-size=900,700',  // 设置窗口大小
+         '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',  // 使用常见用户代理
+         '--disable-dev-shm-usage',
+         '--js-flags="--max_old_space_size=4096"' ]
 
-        browser = await chromium.launch({
-            channel: config.channel,
-            deviceScaleFactor: 1,
-            isMobile: false,
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            headless: config.wutou });
+     };
+    }else{
+      options = {
+        headless: config.wutou,
+        channel: config.channel,
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--window-size=900,700',  // 设置窗口大小
+          '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',  // 使用常见用户代理
+          '--disable-dev-shm-usage',
+          '--js-flags="--max_old_space_size=4096"' ]
+ 
+      };
+    }
 
-        // 创建上下文
-        context = await browser.newContext(
-            {viewport: viewportSize,
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-                extraHTTPHeaders: {
-                    'sec-ch-ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"Windows"'
-                  },
-                  bypassCSP: true
+ 
+     let executablePath = null;
+ for (const path of possiblePaths) {
+   if (fs.existsSync(path)) {
+     executablePath = path;
+     console.log(`找到浏览器路径: ${path}`);
+     break;
+   }
+ }
+ if (executablePath) {
+   options.executablePath = executablePath;
+ }
+  browser = await chromium.launch(options);
+
+     //创建上下文
+     context = await browser.newContext(
+          {  viewport: { width: 900, height: 700 },
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'
         }
-            );
-        page = await context.newPage();
-        // 初始化脚本
-        await context.addInitScript(() => {
-            // 部分伪装，不完全移除
-            Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined  // 不返回 false，而是 undefined
-            });
+             // userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+             // extraHTTPHeaders: {
+             //     'sec-ch-ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+             //     'sec-ch-ua-mobile': '?0',
+             //     'sec-ch-ua-platform': '"Windows"'
+             //   },
+             //   bypassCSP: true
+     
+         );
+     page = await context.newPage();
+     // 初始化脚本
+     // await context.addInitScript(() => {
+     //     // 部分伪装，不完全移除
+     //     Object.defineProperty(navigator, 'webdriver', {
+     //     get: () => undefined  // 不返回 false，而是 undefined
+     //     });
 
-            // 模拟真实浏览器特征
-            Object.defineProperty(navigator, 'plugins', {
-            get: () => [
-                { name: 'Chrome PDF Plugin' },
-                { name: 'Chrome PDF Viewer' }
-            ]
-            });
+     //     // 模拟真实浏览器特征
+     //     Object.defineProperty(navigator, 'plugins', {
+     //     get: () => [
+     //         { name: 'Chrome PDF Plugin' },
+     //         { name: 'Chrome PDF Viewer' }
+     //     ]
+     //     });
+     // });
+
+     memoryMonitor = await setupMemoryMonitoring(page);
+
+     // 设置cookie
+
+
+     nowcookie=await processFileContents(fileContents,cookiesjson);
+     if(!nowcookie){
+
+         console.log("无cookie使用");
+         return;
+     }
+     const sessionCookie=getSessionCookie(nowcookie.content)
+    
+
+     await context.addCookies(sessionCookie);
+
+     await page.addInitScript(() => {
+      // 在页面加载前就禁用 Service Worker
+      if ('serviceWorker' in navigator) {
+          Object.defineProperty(navigator, 'serviceWorker', {
+              value: {
+                  register: () => Promise.reject('Service Worker disabled'),
+                  getRegistration: () => Promise.resolve(null)
+              },
+              writable: false
+          });
+      }
+  });
+
+        // let version =await getVersion();
+        // console.log(version);
+
+        // if(banbenhao == version){
+
+        //     console.log("最新版本无需更新");
+
+        // }else{
+
+        //     console.log(`当前版本：${banbenhao},拥有新版本${version},请进行更新！`);
+        // }
+         // 设置路由处理器，在每个页面加载后注入脚本
+        await context.route('**/*', async (route, request) => {
+          // 继续原始请求
+          await route.continue();
+          
+          // 如果是主文档（页面加载或刷新）
+          if (request.resourceType() === 'document' && 
+              request.url().includes('grok')) {
+            console.log('检测到页面加载或刷新:', request.url());
+            
+            // 等待页面加载完成
+            await page.waitForLoadState('domcontentloaded');
+            
+            // 重新注入我们的脚本
+            await injectFetchInterceptor(page);
+          }
         });
 
-        memoryMonitor = await setupMemoryMonitoring(page);
-
-        // 设置cookie
-
-
-        nowcookie=await processFileContents(fileContents,cookiesjson);
-        if(!nowcookie){
-
-            console.log("无cookie使用");
-            return;
-        }
-        const sessionCookie=getSessionCookie(nowcookie.content)
-       
-
-        await context.addCookies(sessionCookie);
-
-
-        let version =await getVersion();
-        console.log(version);
-
-        if(banbenhao == version){
-
-            console.log("最新版本无需更新");
-
-        }else{
-
-            console.log(`当前版本：${banbenhao},拥有新版本${version},请进行更新！`);
-        }
-
-        userId=await generateUniqueUserId();
+        // userId=await generateUniqueUserId();
         try {
         // 捕获网络错误
         page.on('requestfailed', (request) => {
             console.error('Failed Request:', request.url(), request.failure().errorText);
-            });    
+            });
 
-            await page.addInitScript(() => {
-              // 在页面加载前就禁用 Service Worker
-              if ('serviceWorker' in navigator) {
-                  Object.defineProperty(navigator, 'serviceWorker', {
-                      value: {
-                          register: () => Promise.reject('Service Worker disabled'),
-                          getRegistration: () => Promise.resolve(null)
-                      },
-                      writable: false
-                  });
-              }
-          });
-        page.goto('https://x.com/i/grok');
-        console.log('Successfully opened grok');
+       await page.goto('https://x.com/i/grok');
+        console.log('Successfully opened x.com');
+        let textarea=null;
+        
+        try {
+          textarea = await page.getByPlaceholder('提出任何問題').first();
+          await textarea.waitFor({ state: 'visible', timeout: 100 });
+          console.log("登录成功");
+          console.log('欢迎使用grok反代，成功启动！By从前跟你一样');
 
-
+        } catch (error) {
+          // 处理超时错误
+          try {
+            textarea = await page.getByPlaceholder('随便问点什么').first();
+            await textarea.waitFor({ state: 'visible', timeout: 100 });
+            console.log("登录成功");
+            console.log('欢迎使用grok反代，成功启动！By从前跟你一样');
+          } catch (error) {
+          try {
+            textarea = await page.getByPlaceholder('Ask anything').first();
+            await textarea.waitFor({ state: 'visible', timeout: 100 });
+            console.log("登录成功");
+            console.log('欢迎使用grok反代，成功启动！By从前跟你一样');
+          } catch (error) {
+            // 处理超时错误
+            console.log("登录失败");
+            console.log('登录失败！！！By从前跟你一样');
+            console.error('操作超时:', error);
+          }
+        }
+      }
 
         // 检查是否成功登录
         // 检查是否成功登录
@@ -526,7 +561,7 @@ async function initializeBrowser() {
             // const isLoggedIn = await page.locator('.sc-19bbc80a-2').count() > 0;
             // console.log('Login status:', isLoggedIn);
 
-          console.log('欢迎使用grok反代，成功启动！By从前跟你一样');
+         
 
             } catch (error) {
                 console.log(error);
@@ -538,6 +573,247 @@ async function initializeBrowser() {
         console.error('An error occurred during browser initialization:', error);
     }
 }
+
+
+// 注入 fetch 拦截器
+async function injectFetchInterceptor(page) {
+  console.log('注入 fetch 拦截器...');
+  
+  // 检查是否已经注入
+  const alreadyInjected = await page.evaluate(() => {
+    return window._fetchInterceptorInjected === true;
+  }).catch(() => false);
+  
+  if (alreadyInjected) {
+    console.log('拦截器已经注入，跳过');
+    return;
+  }
+  
+  // 设置拦截器来捕获 fetch 请求
+  await page.evaluate(() => {
+    console.log('设置 fetch 拦截器...');
+    
+    // 标记为已注入
+    window._fetchInterceptorInjected = true;
+    
+    // 保存原始的 fetch 方法
+    const originalFetch = window.fetch;
+    
+    // 覆盖 fetch 方法
+    window.fetch = async function(...args) {
+      const [resource, config] = args;
+
+      console.log("resource",resource);
+      console.log("typeof",typeof resource);
+      console.log("config",config);
+      
+      // 检查是否是目标 URL
+      if (resource.href.includes('/2/grok/add_response.json') && 
+          config && config.method === 'POST') {
+        console.log('拦截到 fetch 请求:', resource);
+        
+        try {
+          // 调用原始 fetch 并获取响应
+          // const response = await originalFetch.apply(this, args);
+                    // 为此请求创建 AbortController
+                    const controller = new AbortController();
+                    window._activeFetchController = controller;
+                  // 将 signal 添加到请求配置中
+                  const newConfig = {
+                    ...config,
+                    signal: controller.signal
+                  };
+                  const response = await originalFetch.call(this, resource, newConfig);
+          // 克隆响应以便我们可以读取它
+          const clonedResponse = response.clone();
+          
+          // 检查是否为流式响应
+          if (true) {
+            console.log('检测到流式响应');
+            
+            // 读取流
+            const reader = clonedResponse.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            
+            // 处理流数据
+            (async () => {
+              let buffer = '';
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  
+                  if (done) {
+                    console.log('流读取完成');
+                    if (buffer.length > 0) {
+                      processEventData(buffer);
+                    }
+                    
+                    // 触发流结束事件
+                    const event = new CustomEvent('streamDataEnd');
+                    window.dispatchEvent(event);
+                    window._activeFetchController = null;
+                    break;
+                  }
+                  
+                  // 解码数据块
+                  const chunk = decoder.decode(value, { stream: true });
+                  console.log('接收到数据块:', chunk.length, '字节');
+                  buffer += chunk;
+                  let data = chunk.toString('utf-8');
+                   console.log('Received data:', data);
+                
+                    const lines = data.split('\n');
+                   buffer = lines.pop();
+                 
+                  lines.forEach(line => {
+                     let shujudata=JSON.parse(line);
+                     console.log("shuju",shujudata);
+                   if(shujudata.hasOwnProperty('result')&&shujudata.result.hasOwnProperty("message")){
+                           console.log("shuju.result.message",shujudata.result.message);
+                           processEventData(shujudata);
+                     }
+                                     
+                  }
+                
+                );
+                }
+              } catch (error) {
+                console.error('读取流时出错:', error);
+                window._activeFetchController = null;
+              }
+            })();
+          }
+          
+          return response;
+        } catch (error) {
+          console.error('拦截请求时出错:', error);
+          window._activeFetchController = null;
+          throw error;
+        }
+      }
+      
+      // 对于其他请求，使用原始 fetch
+      return originalFetch.apply(this, args);
+    };
+    
+    // 处理事件数据
+    function processEventData(line) {
+      // 检查是否为 SSE 数据行
+       // const data = line.substring(6); // 移除 'data: ' 前缀
+        try {
+          // 解析 JSON 数据
+          let jsonData={};
+          try{
+            jsonData=JSON.parse(line);
+          }catch(error){
+            console.error('解析 JSON 时出错:', error, '原始数据:', line);
+            jsonData=line;
+          }
+
+
+            
+          
+          console.log('处理事件数据类型:', jsonData);
+          
+          // 检查是否为结束信号
+          if (false) {
+            console.log('检测到流结束信号');
+            
+            // 触发流结束事件
+            const event = new CustomEvent('streamDataEnd');
+            window.dispatchEvent(event);
+            return;
+          }
+          
+
+          if(jsonData.hasOwnProperty("result")&&jsonData.result.hasOwnProperty("responseType")&&jsonData.result.responseType=="limiter"){
+
+            // 触发自定义事件
+            const event = new CustomEvent('streamDataReceived', { 
+              detail: "ACTION_QUOTA_EXCEEDED" 
+            });
+            window.dispatchEvent(event);
+  
+                return;
+           }
+
+           console.log("jsonDataresult",jsonData.result);
+          
+          // 检查是否为消息字段增量
+          if (jsonData.hasOwnProperty("result")&&jsonData.result.hasOwnProperty("message")) {
+            console.log('检测到增量更新:', jsonData.result);
+            
+            // 触发自定义事件
+            const event = new CustomEvent('streamDataReceived', { 
+              detail: jsonData.result.message
+            });
+            window.dispatchEvent(event);
+          }
+        } catch (error) {
+          console.error('解析 JSON 时出错:', error);
+        }
+      
+    }
+    
+    console.log('fetch 拦截器设置完成');
+  });
+
+  // 在 Playwright 中暴露处理函数（只在第一次注入时需要）
+  await page.exposeFunction('receiveStreamData', (data) => {
+    console.log('从浏览器接收到的数据:', data);
+    
+    // 处理流数据
+    processStreamData(data);
+  }).catch(e => {
+    // 如果函数已经暴露，会抛出错误，我们可以忽略它
+    console.log('函数已经暴露，跳过');
+  });
+
+  // 处理流结束事件
+  await page.exposeFunction('handleStreamEnd', () => {
+    console.log('流数据传输结束');
+    
+    // 处理流结束
+    if (typeof resssss !== 'undefined') {
+      resssss.end();
+    }
+  }).catch(e => {
+    // 如果函数已经暴露，会抛出错误，我们可以忽略它
+    console.log('函数已经暴露，跳过');
+  });
+
+  // 监听自定义事件
+  await page.evaluate(() => {
+    // 检查是否已经设置了事件监听器
+    if (!window._eventListenersSet) {
+      window._eventListenersSet = true;
+      
+      // 监听流数据事件
+      window.addEventListener('streamDataReceived', (event) => {
+        // 调用在 Node.js 中定义的函数
+        window.receiveStreamData(event.detail);
+      });
+      
+      // 监听流结束事件
+    // 监听流结束事件
+    window.addEventListener('streamDataEnd', () => {
+      window.handleStreamEnd();
+    });
+      
+      console.log('事件监听器设置完成');
+    }
+  });
+
+  console.log('请求拦截器注入完成');
+}
+
+// 处理流数据的函数
+
+
+
+
+
+
 async function restartBrowser() {
     console.log('Restarting browser...');
     isRestarting = true;
@@ -560,8 +836,7 @@ process.on('SIGINT', async () => {
 });
 
 const availableModels = [
-    { id: "gork-3", name: "gork-3" },
-    { id: "gork-3-上传", name: "gork-3-上传" }
+    { id: "从网页选择默认GROK", name: "从网页选择默认GROK" },
 ];
 
 let Upload=false;
@@ -577,10 +852,20 @@ app.post('/v1/chat/completions', async (req, res) => {
     res.on('close', async () => {
         console.log('Client disconnected');
         Aborted = true;
-        if(rrreeeqqq){
-        customEventSource.close();
-        resssss=null;
-        }
+        await page.evaluate(() => {
+          if (window._activeFetchController) {
+            console.log('中止正在进行的请求');
+            window._activeFetchController.abort();
+            window._activeFetchController = null;
+          }
+          
+          // 触发事件通知所有监听器
+          const event = new CustomEvent('clientDisconnected');
+          window.dispatchEvent(event);
+        }).catch(err => {
+          console.error('中止请求时出错:', err);
+        });
+
     });
 
     let body=req.body
@@ -630,113 +915,14 @@ app.get('/v1/models', (req, res) => {
 });
 
 
-class CustomEventSource extends EventEmitter {
-    constructor(url, options = {}) {
-        super();
-        this.url = new URL(url);
-        this.options = options;
-        console.log("options",options);
-        this.reconnectInterval = 1000;
-        this.shouldReconnect = true;
-        this.req = null; // 添加 req 属性
-        this.connect();
-    }
 
-    connect() {
-
-        
-        if(One){
-            One=false;
-            console.log('开始请求');
-           }else{
-             
-            return null;
-         }
-        // 如果已经有活跃的请求，先关闭它
-        if (this.req) {
-            this.req.destroy();
-        }
-
-        const requestOptions = {
-            method: this.options.method || 'GET',
-            headers: {
-                ...this.options.headers
-            },
-            agent: this.options.agent,
-            timeout: 3000
-        };
-
-        const client = this.url.protocol === 'https:' ? https : http;
-        
-        // 将 req 赋值给 this.req
-        this.req = client.request(this.url, requestOptions, (res2) => {
-            let buffer = '';
-            
-            res2.on('data', (chunk) => {
-                console.log('Received data:', chunk.toString('utf-8'));
-                 let data = chunk.toString('utf-8');
-                 
-                const lines = data.split('\n');
-                buffer = lines.pop();
-
-                lines.forEach(line => {
-                      let shuju=JSON.parse(line);
-                      if(shuju.hasOwnProperty('result')&&shuju.result.hasOwnProperty("message")){
-                        this.emit('message', shuju.result);
-                      //  console.log("shuju.result:",shuju.result)
-                       }
-                    
-                });
-
-            });
-
-            res2.on('end', () => {
-                if (this.shouldReconnect) {
-                    this.emit('end', 'Stream ended');
-                    setTimeout(() => this.connect(), this.reconnectInterval);
-                } else {
-                    this.emit('close', 'Connection closed');
-                }
-                return null;
-            });
-        });
-
-        this.req.on('error', (error) => {
-            this.emit('error', error);
-            if (this.shouldReconnect) {
-                setTimeout(() => this.connect(), this.reconnectInterval);
-            }
-        });
-
-        if (this.options.body) {
-            this.req.write(this.options.body);
-        }
-
-        this.req.end();
-    }
-
-    close() {
-        this.shouldReconnect = false; // 阻止重连
-        
-        // 立即销毁当前请求
-        if (this.req) {
-            this.req.destroy(); // 使用 destroy 方法更彻底地关闭连接
-            this.req = null; // 清空请求引用
-        }
-        return null;
-    }
-}
-
-
-let viptanchuan=false;
-
-let newuse=true;
 
 let  localCopyPath="";
 
 async function sendMessage(res3, message) {
 
-          
+ 
+         
     let isResponseEnded = false;
     if(config.pro){
 
@@ -776,16 +962,37 @@ async function sendMessage(res3, message) {
     }
 
     const sessionCookie=getSessionCookie(nowcookie.content)
+    console.log("nowcookie",nowfilename);
     console.log("sessionCookie",sessionCookie);
 
     await context.addCookies(sessionCookie);
 
 
+
 //新建聊天
+try {
+  // 等待按钮可见且 aria-hidden 为 false
+      const manageSourcesButton = await page.waitForSelector(
+          'button[aria-label="新聊天"][role="button"]', 
+          { 
+            state: 'visible',
+            timeout: 100
+          }
+        );
+      if(manageSourcesButton){
+          await page.evaluate(() => {
+              const button = document.querySelector(
+                'button[aria-label="新聊天"][role="button"]'
+              );
+              if (button) button.click();
+            });
+      }
+
+  } catch (error) {
     try {
       // 等待按钮可见且 aria-hidden 为 false
           const manageSourcesButton = await page.waitForSelector(
-              'button[aria-label="新聊天"][role="button"]', 
+              'button[aria-label="New Chat"][role="button"]', 
               { 
                 state: 'visible',
                 timeout: 100
@@ -794,7 +1001,7 @@ async function sendMessage(res3, message) {
           if(manageSourcesButton){
               await page.evaluate(() => {
                   const button = document.querySelector(
-                    'button[aria-label="新聊天"][role="button"]'
+                    'button[aria-label="New Chat"][role="button"]'
                   );
                   if (button) button.click();
                 });
@@ -804,7 +1011,7 @@ async function sendMessage(res3, message) {
         try {
           // 等待按钮可见且 aria-hidden 为 false
               const manageSourcesButton = await page.waitForSelector(
-                  'button[aria-label="New Chat"][role="button"]', 
+                  'button[aria-label="新聊天"][role="button"]', 
                   { 
                     state: 'visible',
                     timeout: 100
@@ -813,79 +1020,139 @@ async function sendMessage(res3, message) {
               if(manageSourcesButton){
                   await page.evaluate(() => {
                       const button = document.querySelector(
-                        'button[aria-label="New Chat"][role="button"]'
+                        'button[aria-label="新聊天"][role="button"]'
                       );
                       if (button) button.click();
                     });
               }
     
           } catch (error) {
-            try {
-              // 等待按钮可见且 aria-hidden 为 false
-                  const manageSourcesButton = await page.waitForSelector(
-                      'button[aria-label="新聊天"][role="button"]', 
-                      { 
-                        state: 'visible',
-                        timeout: 100
-                      }
-                    );
-                  if(manageSourcesButton){
-                      await page.evaluate(() => {
-                          const button = document.querySelector(
-                            'button[aria-label="新聊天"][role="button"]'
-                          );
-                          if (button) button.click();
-                        });
-                  }
-        
-              } catch (error) {
-                console.log("无需开启新聊天");
-        
-              }
+            console.log("无需开启新聊天");
     
           }
-        
+
       }
-
-    //新建聊天
     
-    await setupRequestInterception(page);
-    await new Promise(resolve => setTimeout(resolve, 200));
+  }
 
-    
-    try {
-        message = message.messages;
-        message = simplifyJsonString(message)
-        function simplifyJsonString(message) {
-            try {
-              
-              // 将每个消息转换为简化的文本格式
-              let simplifiedMessages = message.map(msg => {
-               
-                if(config.tohuman){
-                      
-                    return `${msg.role.replace("user","Human").replace("assistant","Assistant")}: ${msg.content}`;
+//新建聊天
 
-                }else{
-                    return `${msg.role}: ${msg.content}`;
-                }
-              });
-              
-              // 将所有简化的消息用换行符连接
-              return simplifiedMessages.join('\n\n');
-            } catch (error) {
-              console.error("Error parsing JSON:", error);
-              return "Error: Invalid JSON string";
+
+
+try {
+    message = message.messages;
+    message = simplifyJsonString(message)
+    function simplifyJsonString(message) {
+        try {
+          
+          // 将每个消息转换为简化的文本格式
+          let simplifiedMessages = message.map(msg => {
+           
+            if(config.tohuman){
+                  
+                return `${msg.role.replace("user","Human").replace("assistant","Assistant")}: ${msg.content}`;
+
+            }else{
+                return `${msg.role}: ${msg.content}`;
             }
-          }
-          Message = message;
-     //   console.log('Formatted messages:', message);
-        if(Upload){
-                      let yuyan="提出任何問題";
+          });
+          
+          // 将所有简化的消息用换行符连接
+          return simplifiedMessages.join('\n\n');
+        } catch (error) {
+          console.error("Error parsing JSON:", error);
+          return "Error: Invalid JSON string";
+        }
+      }
+      Message = message;
+ //   console.log('Formatted messages:', message);
+    if(Upload){
+                  let yuyan="提出任何問題";
 
-                      const txtname= Math.random().toString(36).substring(3);
-                      localCopyPath = path.join(__dirname, `${txtname+".txt"}`);
-                      fs.writeFileSync(localCopyPath, message);
+                  const txtname= Math.random().toString(36).substring(3);
+                  localCopyPath = path.join(__dirname, `${txtname+".txt"}`);
+                  fs.writeFileSync(localCopyPath, message);
+
+                  let textarea=null;
+
+                  try {
+                    textarea = await page.getByPlaceholder('提出任何問題').first();
+                    await textarea.waitFor({ state: 'visible', timeout: 100 });
+
+                  } catch (error) {
+                    // 处理超时错误
+                    try {
+                      textarea = await page.getByPlaceholder('随便问点什么').first();
+                      await textarea.waitFor({ state: 'visible', timeout: 100 });
+                      yuyan="随便问点什么";
+              
+                    } catch (error) {
+                    try {
+                      textarea = await page.getByPlaceholder('Ask anything').first();
+                      await textarea.waitFor({ state: 'visible', timeout: 100 });
+                      yuyan="Ask anything";
+              
+                    } catch (error) {
+                      // 处理超时错误
+                      console.error('操作超时:', error);
+                    }
+                  }
+                }
+
+                    if (!textarea) {
+
+                      console.log('textarea not found');
+                      return false;
+                      
+                    }
+                    try { 
+
+                      // ... existing code ...
+
+
+                      await new Promise(resolve => setTimeout(resolve, 200));
+
+
+                         const fileInput = await page.locator('input[type="file"]');
+                          // 强制清空文件列表（即使支持多文件）
+                          try {
+                            // 使用 waitForSelector 设置超时时间
+                            await page.waitForSelector('button[aria-label="Remove"]', { 
+                              timeout: 100,
+                              state: 'visible' 
+                            });
+                          
+                            // 点击按钮
+                            await page.getByLabel('Remove').click();
+                          } catch (error) {
+                            // 如果在100毫秒内未找到，静默处理
+                            console.log('无需清除文件');
+                          }
+
+                          // 直接设置文件路径，不会显示文件选择对话框
+                          await fileInput.setInputFiles(localCopyPath);
+
+
+                                // 方法3：对于超长文本，使用剪贴板
+                  await page.evaluate((text) => {
+                      navigator.clipboard.writeText(text);
+                    }, config.Prompt);
+                    await textarea.click();
+
+                    await page.keyboard.press('Control+A');
+
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    await page.keyboard.press('Control+V');
+                      
+                    } catch (error) {
+
+                      console.error('Error:', error);
+                    }
+
+
+
+   }else{
 
                       let textarea=null;
 
@@ -898,13 +1165,11 @@ async function sendMessage(res3, message) {
                         try {
                           textarea = await page.getByPlaceholder('随便问点什么').first();
                           await textarea.waitFor({ state: 'visible', timeout: 100 });
-                          yuyan="随便问点什么";
                   
                         } catch (error) {
                         try {
                           textarea = await page.getByPlaceholder('Ask anything').first();
                           await textarea.waitFor({ state: 'visible', timeout: 100 });
-                          yuyan="Ask anything";
                   
                         } catch (error) {
                           // 处理超时错误
@@ -916,135 +1181,76 @@ async function sendMessage(res3, message) {
                         if (!textarea) {
 
                           console.log('textarea not found');
-                          return false;
                           
                         }
                         try { 
 
-                          // ... existing code ...
+                      
+                        //  await textarea.fill(Message);
 
-
-                          await new Promise(resolve => setTimeout(resolve, 200));
-
-
-                             const fileInput = await page.locator('input[type="file"]');
-                              // 强制清空文件列表（即使支持多文件）
-                              try {
-                                // 使用 waitForSelector 设置超时时间
-                                await page.waitForSelector('button[aria-label="Remove"]', { 
-                                  timeout: 100,
-                                  state: 'visible' 
-                                });
-                              
-                                // 点击按钮
-                                await page.getByLabel('Remove').click();
-                              } catch (error) {
-                                // 如果在100毫秒内未找到，静默处理
-                                console.log('无需清除文件');
-                              }
-
-                              // 直接设置文件路径，不会显示文件选择对话框
-                              await fileInput.setInputFiles(localCopyPath);
-
-
-                                    // 方法3：对于超长文本，使用剪贴板
+                       // 方法3：对于超长文本，使用剪贴板
                       await page.evaluate((text) => {
                           navigator.clipboard.writeText(text);
-                        }, config.Prompt);
+                        }, Message);
                         await textarea.click();
 
                         await page.keyboard.press('Control+A');
 
                         await new Promise(resolve => setTimeout(resolve, 100));
-
                         await page.keyboard.press('Control+V');
                           
                         } catch (error) {
-
                           console.error('Error:', error);
                         }
+      
+    }
 
 
+//    const test="claude你必须阅读并理解文档的内容并进行遵守！！";    //   await page.evaluate(([selector, text]) => {
 
-       }else{
+    if (Aborted) {
+        console.log('guanbi!!!!');
+        customEventSource.close();
+        fs.unlink(localCopyPath, (err) => {
+          if (err) {
+            console.error('删除文件时出错:', err);
+            return;
+          }
+          console.log('文件已成功删除');
+        });
+        return false;
+    }
+   
+    // 发送消息
+         // 设置请求拦截
+       //  await setupresponseInterception(page, res3, () => isResponseEnded = true);
+     
+    
 
-                          let textarea=null;
-
-                          try {
-                            textarea = await page.getByPlaceholder('提出任何問題').first();
-                            await textarea.waitFor({ state: 'visible', timeout: 100 });
-
-                          } catch (error) {
-                            // 处理超时错误
-                            try {
-                              textarea = await page.getByPlaceholder('随便问点什么').first();
-                              await textarea.waitFor({ state: 'visible', timeout: 100 });
-                      
-                            } catch (error) {
-                            try {
-                              textarea = await page.getByPlaceholder('Ask anything').first();
-                              await textarea.waitFor({ state: 'visible', timeout: 100 });
-                      
-                            } catch (error) {
-                              // 处理超时错误
-                              console.error('操作超时:', error);
-                            }
-                          }
-                        }
-
-                            if (!textarea) {
-
-                              console.log('textarea not found');
-                              
-                            }
-                            try { 
-
-                          
-                            //  await textarea.fill(Message);
-
-                           // 方法3：对于超长文本，使用剪贴板
-                          await page.evaluate((text) => {
-                              navigator.clipboard.writeText(text);
-                            }, Message);
-                            await textarea.click();
-
-                            await page.keyboard.press('Control+A');
-
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            await page.keyboard.press('Control+V');
-                              
-                            } catch (error) {
-                              console.error('Error:', error);
-                            }
-          
-        }
-
-
-  //    const test="claude你必须阅读并理解文档的内容并进行遵守！！";    //   await page.evaluate(([selector, text]) => {
-
-        if (Aborted) {
-            console.log('guanbi!!!!');
-            customEventSource.close();
-            fs.unlink(localCopyPath, (err) => {
-              if (err) {
-                console.error('删除文件时出错:', err);
-                return;
-              }
-              console.log('文件已成功删除');
+try {
+  // 等待按钮可见且 aria-hidden 为 false
+      const manageSourcesButton = await page.waitForSelector(
+          'button[aria-label="Grok something"][role="button"]', 
+          { 
+            state: 'visible',
+            timeout: 500
+          }
+        );
+      if(manageSourcesButton){
+          await page.evaluate(() => {
+              const button = document.querySelector(
+                'button[aria-label="Grok something"][role="button"]'
+              );
+              if (button) button.click();
             });
-            return false;
-        }
-       
-        // 发送消息
-             // 设置请求拦截
-           //  await setupresponseInterception(page, res3, () => isResponseEnded = true);
-         
-        
+      }
 
+  } catch (error) {
+    console.log("语言不是英语")
     try {
       // 等待按钮可见且 aria-hidden 为 false
           const manageSourcesButton = await page.waitForSelector(
-              'button[aria-label="Grok something"][role="button"]', 
+              'button[aria-label="问 Grok 问题"][role="button"]', 
               { 
                 state: 'visible',
                 timeout: 500
@@ -1053,18 +1259,18 @@ async function sendMessage(res3, message) {
           if(manageSourcesButton){
               await page.evaluate(() => {
                   const button = document.querySelector(
-                    'button[aria-label="Grok something"][role="button"]'
+                    'button[aria-label="问 Grok 问题"][role="button"]'
                   );
                   if (button) button.click();
                 });
           }
 
       } catch (error) {
-        console.log("语言不是英语")
+        console.log("语言不是繁体")
         try {
           // 等待按钮可见且 aria-hidden 为 false
               const manageSourcesButton = await page.waitForSelector(
-                  'button[aria-label="问 Grok 问题"][role="button"]', 
+                  'button[aria-label="問 Grok 一些問題"][role="button"]', 
                   { 
                     state: 'visible',
                     timeout: 500
@@ -1073,92 +1279,71 @@ async function sendMessage(res3, message) {
               if(manageSourcesButton){
                   await page.evaluate(() => {
                       const button = document.querySelector(
-                        'button[aria-label="问 Grok 问题"][role="button"]'
+                        'button[aria-label="問 Grok 一些問題"][role="button"]'
                       );
                       if (button) button.click();
                     });
               }
     
           } catch (error) {
-            console.log("语言不是繁体")
-            try {
-              // 等待按钮可见且 aria-hidden 为 false
-                  const manageSourcesButton = await page.waitForSelector(
-                      'button[aria-label="問 Grok 一些問題"][role="button"]', 
-                      { 
-                        state: 'visible',
-                        timeout: 500
-                      }
-                    );
-                  if(manageSourcesButton){
-                      await page.evaluate(() => {
-                          const button = document.querySelector(
-                            'button[aria-label="問 Grok 一些問題"][role="button"]'
-                          );
-                          if (button) button.click();
-                        });
-                  }
-        
-              } catch (error) {
-                console.error('发送点击错误', error);
-        
-              }
+            console.error('发送点击错误', error);
     
           }
-        
+
       }
+    
+  }
 
-      await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, 1000);
-      });
+  await new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, 1000);
+  });
 
-      try {
-        if(Upload){
+  try {
+    if(Upload){
+    fs.unlink(localCopyPath, (err) => {
+      if (err) {
+        console.error('删除文件时出错:', err);
+      }
+      console.log('文件已成功删除');
+    });
+  }
+
+  } catch (error) {
+    console.error('删除文件时出错:', err);
+  }
+
+
+      nowcount=nowcount+1
+      updateCookiesJson(nowfilename,nowcount);
+
+      console.log('nowfilename',nowfilename);
+      console.log('nowcount',nowcount);
+
+   
+    if (Aborted) {
+        console.log('guanbi!!!!');
+        customEventSource.close();
         fs.unlink(localCopyPath, (err) => {
           if (err) {
             console.error('删除文件时出错:', err);
+            return;
           }
           console.log('文件已成功删除');
         });
-      }
+        return false;
+    }
+   // recordUserRequest(userId);
 
-      } catch (error) {
-        console.error('删除文件时出错:', err);
-      }
-
-
-          nowcount=nowcount+1
-          updateCookiesJson(nowfilename,nowcount);
-
-          console.log('nowfilename',nowfilename);
-          console.log('nowcount',nowcount);
-
-       
-        if (Aborted) {
-            console.log('guanbi!!!!');
-            customEventSource.close();
-            fs.unlink(localCopyPath, (err) => {
-              if (err) {
-                console.error('删除文件时出错:', err);
-                return;
-              }
-              console.log('文件已成功删除');
-            });
-            return false;
-        }
-       // recordUserRequest(userId);
-
-    } catch (error) {
-        console.error('Error in sendMessage:', error);
-        if (!isResponseEnded) {
-            res3.write(`data: [ERROR]\n\n`);
-            res3.end();
-        }
+} catch (error) {
+    console.error('Error in sendMessage:', error);
+    if (!isResponseEnded) {
+        res3.write(`data: [ERROR]\n\n`);
+        res3.end();
     }
 }
-
+}
 async function clickElement(selector, page) {
     await page.waitForSelector(selector, { timeout: 10000 });
     const element = await page.$(selector);
@@ -1319,218 +1504,32 @@ function getFileType(fileName) {
 
 
 
- async function setupRequestInterception(page) {
-    // Playwright 使用 route 而不是 setRequestInterception
-    await page.unroute('**/*');
 
-    await page.addInitScript(() => {
-      // 在页面加载前就禁用 Service Worker
-      if ('serviceWorker' in navigator) {
-          Object.defineProperty(navigator, 'serviceWorker', {
-              value: {
-                  register: () => Promise.reject('Service Worker disabled'),
-                  getRegistration: () => Promise.resolve(null)
-              },
-              writable: false
-          });
-      }
-  });
-
-    console.log('设置请求拦截器..`````````````````````````````````````````````````````````````````````````````````.');
-   // await new Promise(resolve => setTimeout(resolve, 100));
-
-  //   await page.evaluate(() => {
-  //     // 注销所有 Service Worker
-  //     if ('serviceWorker' in navigator) {
-  //         navigator.serviceWorker.getRegistrations().then(registrations => {
-  //             registrations.forEach(registration => {
-  //                 registration.unregister();
-  //             });
-  //         });
-  //     }
-  // });
-    
-    await page.route('**/*', async (route) => {
-        const request = route.request();
-        let url = request.url();
-      //  console.log('request url:', url);
-
-        if (url.includes('/2/grok/add_response.json')&&request.method()==='POST') {
-              console.log('request url:', url);
-             // await route.abort();
-            
-            // 处理 OPTIONS 预检请求
-            // if (request.method() === 'OPTIONS') {
-            //     await route.fulfill({
-            //         status: 200,
-            //         headers: {
-            //             'Access-Control-Allow-Origin': 'https://you.com/',
-            //             'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            //             'Access-Control-Allow-Headers': 'content-type,x-client-id,x-client-locale,x-client-type,x-client-version,x-from-channel,x-product-name,x-time-zone',
-            //             'Access-Control-Max-Age': '86400',
-            //             'Access-Control-Allow-Credentials': 'true'
-            //         }
-            //     });
-            //     return;
-            // }
-
-
-            try {
-                console.log('method:', request.method());
-                // 创建 EventSource 实例
-                const eventSourceOptions = {
-                    method: request.method(),
-                    headers: await request.allHeaders(),
-                    body: request.postData(),
-                    timeout: 60000
-                };
-
-
-
-                if (config.proxy) {
-                    eventSourceOptions.agent = proxyAgent;
-                }
-
-                customEventSource = new CustomEventSource(url, eventSourceOptions);
-
-                customEventSource.on('message', (event) => {
-                    if (Aborted) {
-                        console.log('关闭连接!');
-                        
-                        customEventSource.close();
-                        return false;
-                    }
-                 //   console.log('Received event:', event);
-                 //   console.log('Received message:', event.message);
-                    processStreamData(event.message);
-                });
-
-                customEventSource.on('error', (error) => {
-                    console.error('EventSource error:', error);
-                    cleanupAndEnd('Error occurred');
-                    return false;
-                });
-
-                customEventSource.on('end', (message) => {
-                    console.log('Stream ended:', message);
-                    cleanupAndEnd('Stream ended');
-                    return false;
-                });
-
-                customEventSource.on('close', (message) => {
-                    console.log('Connection closed:', message);
-                    cleanupAndEnd('Connection closed');
-                    return false;
-                });
-
-                return false;
-
-            } catch (error) {
-                console.error('Error intercepting request:', error);
-                console.log('Client disconnected');
-                Aborted = true;
-                if (rrreeeqqq) {
-                    resssss = null;
-                }
-                return false;
-            }
-        } else {
-            // 对于其他请求，直接继续
-            await route.continue();
-        }
-    });
-
-    function processStreamData(message) {
-        if (Aborted) {
-            console.log('Request aborted, stopping data processing');
-             
-            return;
-        }
-
-       // console.log('数据', message);
-
-
-        if (message){
-            try {
-              //  const parsedMessage = JSON.parse(message);
-                const text = message;
-                const response = {
-                    id: "chatcmpl-" + Math.random().toString(36).substr(2, 9),
-                    object: "chat.completion",
-                    created: Date.now(),
-                    model: "gpt-3.5-turbo-0613",
-                    usage: {
-                        prompt_tokens: 9,
-                        completion_tokens: text.length,
-                        total_tokens: 9 + text.length
-                    },
-                    choices: [{
-                        delta: {
-                            role: 'assistant',
-                            content: text || null
-                        },
-                        finish_reason: null,
-                        index: 0
-                    }]
-                };
-
-                if (resssss) {
-                    console.log('Sending response:', JSON.stringify(response));
-                    if (isstream) {
-                       // console.log(isstream)
-                        reqmessage += text;
-                        resssss.flushHeaders();
-                        resssss.write(`data: ${JSON.stringify(response).replace("\\n", "\\n ")}\n\n`);
-                        resssss.flushHeaders();
-                    } else {
-                        reqmessage += text;
-                    }
-                }
-            } catch (error) {
-                console.error('Error processing message:', error);
-                console.log('Client disconnected');
-                Aborted = true;
-                if (rrreeeqqq) {
-                    customEventSource.close();
-                    resssss = null;
-                }
-            }
-        }
-    }
-
-    function cleanupAndEnd(reason) {
-        console.log(`Ending response: ${reason}`);
-        if (customEventSource) {
-            customEventSource.removeAllListeners();
-            customEventSource.close();
-        }
+        
          
-        if (resssss) {
-            if (isstream) {
-                if (reqmessage !== "") {
-                    resssss.write(`data: [DONE]\n\n`);
-                    resssss.end();
-                } else {
-                    resssss.write('{"error":{"message":"网络错误","type":"invalid_request_error","param":null,"code":null}}');
-                    resssss.end();
-                }
-            } else {
-                if (reqmessage !== "") {
-                    const response = createChatCompletion(reqmessage);
-                    resssss.write(JSON.stringify(response));
-                    resssss.end();
-                } else {
-                    resssss.write('{"error":{"message":"网络错误","type":"invalid_request_error","param":null,"code":null}}');
-                    resssss.end();
-                }
-            }
-        }
-        console.log('Response ended and resources cleaned up');
-    }
-    await new Promise(resolve => setTimeout(resolve, 100));
-}
+            
+ app.get('/', (req, res) => {
+  res.send('Genspark AI Proxy is running');
+});
+        
 
-server.listen(config.port, () => {
+      
+        // 全局错误处理
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// 404处理
+app.use((req, res) => {
+  console.log(`Route not found: ${req.method} ${req.url}`);
+  res.status(404).json({ error: 'Not found' });
+});
+
+
+
+
+server.listen(config.port, '0.0.0.0', () => {
     console.log(`服务器运行在 http://localhost:${config.port}`);
 });
 function createChatCompletion(content){
@@ -1561,3 +1560,102 @@ function createChatCompletion(content){
     };
 };
 const generateId = () => 'chatcmpl-' + Math.random().toString(36).substring(2, 15);
+
+async function processStreamData(message) {
+  if (Aborted) {
+      console.log('Request aborted, stopping data processing');
+       
+      return;
+  }
+  if(message=="ACTION_QUOTA_EXCEEDED"){
+    updateCookiesJson(nowfilename,10000);
+
+    const text = "这个号次数上限了";
+
+    const response = {
+        id: "chatcmpl-" + Math.random().toString(36).substr(2, 9),
+        object: "chat.completion",
+        created: Date.now(),
+        model: "gpt-3.5-turbo-0613",
+        usage: {
+            prompt_tokens: 9,
+            completion_tokens: text.length,
+            total_tokens: 9 + text.length
+        },
+        choices: [{
+            delta: {
+                role: 'assistant',
+                content: text || null
+            },
+            finish_reason: null,
+            index: 0
+        }]
+    };
+      resssss.write(`data: ${JSON.stringify(response).replace("\\n", "\\n ")}\n\n`);
+      resssss.end();
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      await page.evaluate(() => {
+        const close_button = document.querySelector('[class="button ok"]');
+        if (close_button) {
+          const event = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+          });
+          close_button.dispatchEvent(event);
+        }
+      });
+
+      return;
+  }
+
+ // console.log('数据', message);
+
+
+  if (message){
+      try {
+        //  const parsedMessage = JSON.parse(message);
+          const text = message;
+          const response = {
+              id: "chatcmpl-" + Math.random().toString(36).substr(2, 9),
+              object: "chat.completion",
+              created: Date.now(),
+              model: "gpt-3.5-turbo-0613",
+              usage: {
+                  prompt_tokens: 9,
+                  completion_tokens: text.length,
+                  total_tokens: 9 + text.length
+              },
+              choices: [{
+                  delta: {
+                      role: 'assistant',
+                      content: text || null
+                  },
+                  finish_reason: null,
+                  index: 0
+              }]
+          };
+
+          if (resssss) {
+              console.log('Sending response:', JSON.stringify(response));
+              if (isstream) {
+                 // console.log(isstream)
+                  reqmessage += text;
+                  resssss.flushHeaders();
+                  resssss.write(`data: ${JSON.stringify(response).replace("\\n", "\\n ")}\n\n`);
+                  resssss.flushHeaders();
+              } else {
+                  reqmessage += text;
+              }
+          }
+      } catch (error) {
+          console.error('Error processing message:', error);
+          console.log('Client disconnected');
+          Aborted = true;
+          if (rrreeeqqq) {
+              customEventSource.close();
+              resssss = null;
+          }
+      }
+  }
+}
