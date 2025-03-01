@@ -26,8 +26,8 @@ RUN apt-get update && apt-get install -y \
 COPY . .
 
 # 设置启动脚本
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+COPY start2.sh /start2.sh
+RUN chmod +x /start2.sh
 
 # Change permissions (optional, if needed)
 RUN chmod -R 777 /app
@@ -36,6 +36,6 @@ RUN chmod -R 777 /app
 EXPOSE 3333
 
 # 启动命令
-CMD ["/start.sh"]
+CMD ["/start2.sh"]
 
 

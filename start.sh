@@ -1,7 +1,17 @@
 #!/bin/bash
-# 启动虚拟显示
-Xvfb :99 -screen 0 1024x768x16 &
-export DISPLAY=:99
+echo 正在安装 Playwright...
+npm install playwright
 
-# 启动您的Node.js应用
+echo 正在安装 Chromium...
+npm exec playwright install chromium
+
+REM 安装依赖包
+call npm install
+# 安装依赖包
+npm install
+
+# 运行 Node.js 应用程序
 node server.js
+
+echo "按 Enter 键退出..."
+read
