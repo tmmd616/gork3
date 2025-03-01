@@ -1,6 +1,6 @@
 {
     "port": 3333,
-    "pro":false,
+    "pro":true,
     "Hours24":1000,
     "channel": "chromium",
     "channel注释":"支持chromium、msedge、chrome",
